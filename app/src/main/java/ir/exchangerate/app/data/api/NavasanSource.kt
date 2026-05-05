@@ -107,7 +107,8 @@ class NavasanSource(
     private fun extractLargeNumber(scope: Element): Long? {
         var best: Long? = null
         for (node in scope.select("*")) {
-            val text = node.ownText().ifBlank { continue }
+            val text = node.ownText()
+            if (text.isBlank()) continue
             val parsed = PriceParser.parseLong(text) ?: continue
             if (parsed > 5000 && parsed < 100_000_000_000L) {
                 if (best == null || parsed > best!!) best = parsed
