@@ -23,12 +23,13 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,14 +41,11 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.runtime.CompositionLocalProvider
 import ir.exchangerate.app.data.RatesState
-import ir.exchangerate.app.data.model.Currency
-import ir.exchangerate.app.data.model.Rate
+import ir.exchangerate.app.data.SourceRates
 import ir.exchangerate.app.ui.RatesViewModel
 import ir.exchangerate.app.ui.components.LiveBadge
-import ir.exchangerate.app.ui.components.RateCard
-import ir.exchangerate.app.ui.util.timeAgoFa
+import ir.exchangerate.app.ui.components.SourceSection
 
 @Composable
 fun RatesScreen(
@@ -77,8 +75,11 @@ fun RatesScreen(
             when (val s = state) {
                 RatesState.Loading -> LoadingBlock()
                 is RatesState.Error -> ErrorBlock(message = s.cause.message ?: "خطا", onRetry = viewModel::manualRefresh)
-                is RatesState.Success -> RatesList(s.rates, unit, tick.nowMillis)
-                is RatesState.Partial -> RatesList(s.rates, unit, tick.nowMillis)
+                is RatesState.Loaded -> SectionsList(
+                    sources = s.sources,
+                    unit = unit,
+                    nowMillis = tick.nowMillis,
+                )
             }
         }
     }
@@ -105,7 +106,7 @@ private fun Header(
             )
             Spacer(Modifier.height(4.dp))
             LiveBadge(
-                text = if (isRefreshing) "در حال دریافت لحظه‌ای" else "زنده — tgju.org",
+                text = if (isRefreshing) "در حال دریافت از ۳ منبع" else "زنده — ۳ منبع",
                 color = Color(0xFF16A34A),
                 pulsing = true,
             )
@@ -146,7 +147,7 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Text(
-                    text = "خطا در ارتباط با سرور",
+                    text = "هیچ منبعی پاسخ نداد",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -165,28 +166,22 @@ private fun ErrorBlock(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun RatesList(
-    rates: Map<Currency, Rate>,
+private fun SectionsList(
+    sources: List<SourceRates>,
     unit: ir.exchangerate.app.data.DisplayUnit,
     nowMillis: Long,
 ) {
-    val ordered = listOf(Currency.USD, Currency.EUR, Currency.OMR).mapNotNull { rates[it] }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        items(ordered, key = { it.currency.name }) { rate ->
-            Column {
-                RateCard(rate = rate, unit = unit)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "آخرین بروزرسانی: ${timeAgoFa(nowMillis - rate.fetchedAt)}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                )
-            }
+        items(sources, key = { it.source.name }) { sectionData ->
+            SourceSection(
+                sourceRates = sectionData,
+                unit = unit,
+                nowMillis = nowMillis,
+            )
         }
     }
 }

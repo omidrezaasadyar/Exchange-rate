@@ -1,18 +1,25 @@
 package ir.exchangerate.app.data.api
 
+import ir.exchangerate.app.data.api.util.PriceParser
 import ir.exchangerate.app.data.model.Currency
 import ir.exchangerate.app.data.model.Direction
 import ir.exchangerate.app.data.model.Rate
+import ir.exchangerate.app.data.model.Source
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 
-class TgjuApi(
-    private val client: okhttp3.OkHttpClient = HttpClient.instance,
-) {
+class TgjuSource(
+    private val client: OkHttpClient = HttpClient.instance,
+) : RateSource {
+
+    override val source: Source = Source.TGJU
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -20,7 +27,13 @@ class TgjuApi(
         coerceInputValues = true
     }
 
-    suspend fun fetchAll(currencies: List<Currency>): Map<Currency, Result<Rate>> =
+    private val keyOf = mapOf(
+        Currency.USD to "price_dollar_rl",
+        Currency.EUR to "price_eur",
+        Currency.OMR to "price_omr",
+    )
+
+    override suspend fun fetch(currencies: List<Currency>): Map<Currency, Result<Rate>> =
         withContext(Dispatchers.IO) {
             runCatching { fetchFromJson(currencies) }
                 .getOrElse { fetchFromHtml(currencies) }
@@ -34,13 +47,14 @@ class TgjuApi(
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) error("HTTP ${response.code}")
             val body = response.body?.string().orEmpty()
-            val parsed = json.parseToJsonElement(body).let { it as JsonObject }
+            val parsed = json.parseToJsonElement(body) as JsonObject
             val current = parsed["current"] as? JsonObject ?: error("missing current")
 
             val now = System.currentTimeMillis()
             return currencies.associateWith { currency ->
                 runCatching {
-                    val item = current[currency.tgjuKey] ?: error("missing ${currency.tgjuKey}")
+                    val key = keyOf[currency] ?: error("unmapped currency")
+                    val item = current[key] ?: error("missing $key")
                     val dto = json.decodeFromJsonElement(TgjuItem.serializer(), item)
                     dtoToRate(currency, dto, now)
                 }
@@ -52,8 +66,9 @@ class TgjuApi(
         val now = System.currentTimeMillis()
         return currencies.associateWith { currency ->
             runCatching {
+                val key = keyOf[currency] ?: error("unmapped currency")
                 val request = Request.Builder()
-                    .url("https://www.tgju.org/profile/${currency.tgjuKey}")
+                    .url("https://www.tgju.org/profile/$key")
                     .build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) error("HTTP ${response.code}")
@@ -62,22 +77,18 @@ class TgjuApi(
 
                     val priceText = doc.selectFirst("[data-price=\"current\"]")?.text()
                         ?: doc.selectFirst("span.price")?.text()
-                        ?: doc.selectFirst(".text-muted-2")?.text()
                         ?: error("price not found")
 
-                    val high = doc.selectFirst("[data-col=\"info.last_max\"]")?.text()
-                    val low = doc.selectFirst("[data-col=\"info.last_min\"]")?.text()
-                    val time = doc.selectFirst(".inline.update")?.text()
-
                     Rate(
+                        source = source,
                         currency = currency,
-                        priceRial = parseLong(priceText) ?: error("bad price"),
-                        highRial = parseLong(high),
-                        lowRial = parseLong(low),
+                        priceRial = PriceParser.parseLong(priceText) ?: error("bad price"),
+                        highRial = PriceParser.parseLong(doc.selectFirst("[data-col=\"info.last_max\"]")?.text()),
+                        lowRial = PriceParser.parseLong(doc.selectFirst("[data-col=\"info.last_min\"]")?.text()),
                         changeRial = null,
                         changePercent = null,
                         direction = Direction.FLAT,
-                        sourceTimeText = time,
+                        sourceTimeText = doc.selectFirst(".inline.update")?.text(),
                         fetchedAt = now,
                     )
                 }
@@ -86,11 +97,12 @@ class TgjuApi(
     }
 
     private fun dtoToRate(currency: Currency, dto: TgjuItem, now: Long): Rate = Rate(
+        source = source,
         currency = currency,
-        priceRial = parseLong(dto.price) ?: error("price missing"),
-        highRial = parseLong(dto.high),
-        lowRial = parseLong(dto.low),
-        changeRial = parseLong(dto.change),
+        priceRial = PriceParser.parseLong(dto.price) ?: error("price missing"),
+        highRial = PriceParser.parseLong(dto.high),
+        lowRial = PriceParser.parseLong(dto.low),
+        changeRial = PriceParser.parseLong(dto.change),
         changePercent = dto.changePercent,
         direction = when (dto.direction?.lowercase()) {
             "high", "up" -> Direction.UP
@@ -101,26 +113,14 @@ class TgjuApi(
         fetchedAt = now,
     )
 
-    private fun parseLong(s: String?): Long? {
-        if (s.isNullOrBlank()) return null
-        val cleaned = s.trim()
-            .replace(" ", "")
-            .replace(",", "")
-            .replace("،", "")
-            .replace("٬", "")
-            .let(::toEnglishDigits)
-        return cleaned.toDoubleOrNull()?.toLong()
-    }
-
-    private fun toEnglishDigits(input: String): String {
-        val sb = StringBuilder(input.length)
-        for (c in input) {
-            sb.append(when (c) {
-                in '۰'..'۹' -> '0' + (c - '۰')
-                in '٠'..'٩' -> '0' + (c - '٠')
-                else -> c
-            })
-        }
-        return sb.toString()
-    }
+    @Serializable
+    private data class TgjuItem(
+        @SerialName("p") val price: String? = null,
+        @SerialName("h") val high: String? = null,
+        @SerialName("l") val low: String? = null,
+        @SerialName("d") val change: String? = null,
+        @SerialName("dp") val changePercent: Double? = null,
+        @SerialName("dt") val direction: String? = null,
+        @SerialName("t") val time: String? = null,
+    )
 }

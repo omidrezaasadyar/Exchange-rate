@@ -1,6 +1,7 @@
 package ir.exchangerate.app.data.model
 
 data class Rate(
+    val source: Source,
     val currency: Currency,
     val priceRial: Long,
     val highRial: Long?,

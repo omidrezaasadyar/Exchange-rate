@@ -133,7 +133,7 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "منبع داده: tgju.org\nقیمت‌ها از endpoint رسمی این سایت دریافت می‌شوند و در صورت اختلال به نسخه HTML سوییچ می‌کنند.",
+                    text = "منابع داده:\n• tgju.org — endpoint JSON با fallback به HTML\n• bonbast.com — POST با توکن داینامیک\n• alanchand.com — API و در صورت لزوم HTML\n\nاطلاعات از هر سه منبع به‌صورت موازی دریافت می‌شود.",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
