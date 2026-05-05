@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">قیمت لحظه‌ای ارز</string>
+    <string name="title_rates">قیمت لحظه‌ای ارز</string>
+    <string name="subtitle_source">منبع: tgju.org</string>
+
+    <string name="currency_usd">دلار آمریکا</string>
+    <string name="currency_eur">یورو</string>
+    <string name="currency_omr">ریال عمان</string>
+
+    <string name="symbol_usd">USD</string>
+    <string name="symbol_eur">EUR</string>
+    <string name="symbol_omr">OMR</string>
+
+    <string name="unit_rial">ریال</string>
+    <string name="unit_toman">تومان</string>
+
+    <string name="label_high">بیشترین</string>
+    <string name="label_low">کمترین</string>
+    <string name="label_change">تغییر</string>
+    <string name="label_updated">آخرین بروزرسانی</string>
+
+    <string name="status_live">در حال دریافت لحظه‌ای</string>
+    <string name="status_offline">آفلاین — تلاش مجدد</string>
+    <string name="status_loading">در حال بارگذاری…</string>
+
+    <string name="action_refresh">بروزرسانی</string>
+    <string name="action_settings">تنظیمات</string>
+    <string name="action_retry">تلاش مجدد</string>
+
+    <string name="settings_title">تنظیمات</string>
+    <string name="settings_unit">واحد نمایش قیمت</string>
+    <string name="settings_interval">فاصله بروزرسانی (ثانیه)</string>
+
+    <string name="time_just_now">همین الان</string>
+    <string name="time_seconds_ago">%1$d ثانیه پیش</string>
+    <string name="time_minutes_ago">%1$d دقیقه پیش</string>
+
+    <string name="error_network">خطا در ارتباط با سرور</string>
+    <string name="error_parse">داده‌های دریافتی قابل پردازش نیست</string>
+</resources>
