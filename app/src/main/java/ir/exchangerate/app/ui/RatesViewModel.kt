@@ -21,7 +21,6 @@ import kotlinx.coroutines.launch
 
 data class TickState(
     val nowMillis: Long = System.currentTimeMillis(),
-    val isRefreshing: Boolean = false,
 )
 
 class RatesViewModel(
@@ -42,7 +41,7 @@ class RatesViewModel(
     private val _tick = MutableStateFlow(TickState())
     val tick: StateFlow<TickState> = _tick.asStateFlow()
 
-    private var pollingJob: Job? = null
+    private val pollingJobs = mutableMapOf<String, Job>()
     private var clockJob: Job? = null
 
     init {
@@ -50,34 +49,29 @@ class RatesViewModel(
     }
 
     fun startPolling() {
-        if (pollingJob?.isActive == true) return
-        pollingJob = viewModelScope.launch {
-            while (true) {
-                _tick.value = _tick.value.copy(isRefreshing = true)
-                repository.refresh()
-                _tick.value = _tick.value.copy(
-                    isRefreshing = false,
-                    nowMillis = System.currentTimeMillis(),
-                )
-                val seconds = refreshIntervalSeconds.value.coerceAtLeast(5)
-                delay(seconds * 1000L)
+        repository.sources.forEach { source ->
+            val key = source.source.name
+            if (pollingJobs[key]?.isActive == true) return@forEach
+            pollingJobs[key] = viewModelScope.launch {
+                while (true) {
+                    repository.refreshSource(source)
+                    val baseSeconds = refreshIntervalSeconds.value.coerceAtLeast(5)
+                    val sourceSeconds = source.source.defaultIntervalSeconds
+                    val effective = maxOf(baseSeconds, sourceSeconds)
+                    delay(effective * 1000L)
+                }
             }
         }
     }
 
     fun stopPolling() {
-        pollingJob?.cancel()
-        pollingJob = null
+        pollingJobs.values.forEach { it.cancel() }
+        pollingJobs.clear()
     }
 
     fun manualRefresh() {
-        viewModelScope.launch {
-            _tick.value = _tick.value.copy(isRefreshing = true)
-            repository.refresh()
-            _tick.value = _tick.value.copy(
-                isRefreshing = false,
-                nowMillis = System.currentTimeMillis(),
-            )
+        repository.sources.forEach { source ->
+            viewModelScope.launch { repository.refreshSource(source) }
         }
     }
 
@@ -92,7 +86,7 @@ class RatesViewModel(
     private fun startClock() {
         clockJob = viewModelScope.launch {
             while (true) {
-                _tick.value = _tick.value.copy(nowMillis = System.currentTimeMillis())
+                _tick.value = TickState(System.currentTimeMillis())
                 delay(1000)
             }
         }
@@ -100,7 +94,7 @@ class RatesViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        pollingJob?.cancel()
+        pollingJobs.values.forEach { it.cancel() }
         clockJob?.cancel()
     }
 

@@ -98,6 +98,7 @@ private fun SectionHeader(sourceRates: SourceRates, nowMillis: Long) {
         }
 
         SourceStatusDot(
+            isFetching = sourceRates.isFetching,
             isFresh = sourceRates.isFresh,
             hasData = sourceRates.rates.isNotEmpty(),
         )
@@ -105,8 +106,9 @@ private fun SectionHeader(sourceRates: SourceRates, nowMillis: Long) {
 }
 
 @Composable
-private fun SourceStatusDot(isFresh: Boolean, hasData: Boolean) {
+private fun SourceStatusDot(isFetching: Boolean, isFresh: Boolean, hasData: Boolean) {
     val color = when {
+        isFetching -> Color(0xFF1F6FEB)
         isFresh -> Color(0xFF16A34A)
         hasData -> Color(0xFFD97706)
         else -> Color(0xFFDC2626)
@@ -127,6 +129,7 @@ private fun SourceStatusDot(isFresh: Boolean, hasData: Boolean) {
         )
         Text(
             text = when {
+                isFetching -> "در حال دریافت"
                 isFresh -> "زنده"
                 hasData -> "کش"
                 else -> "خطا"

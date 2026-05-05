@@ -133,7 +133,7 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "منابع داده:\n• tgju.org — endpoint JSON با fallback به HTML\n• bonbast.com — POST با توکن داینامیک\n• alanchand.com — API و در صورت لزوم HTML\n\nاطلاعات از هر سه منبع به‌صورت موازی دریافت می‌شود.",
+                    text = "منابع داده:\n• tgju.org — HTTP سریع، هر ۱۰ ثانیه\n• bonbast.com — WebView، هر ۳۰ ثانیه\n• alanchand.com — WebView، هر ۳۰ ثانیه\n• navasan.tech — WebView، هر ۳۰ ثانیه\n\nهر منبع loop مستقل خودش را دارد. منابع WebView صفحه را در پس‌زمینه رندر می‌کنند تا قیمت‌های وابسته به جاوااسکریپت قابل خواندن شوند.",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -66,8 +66,10 @@ fun RatesScreen(
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .windowInsetsPadding(WindowInsets.navigationBars),
         ) {
+            val anyFetching = (state as? RatesState.Loaded)
+                ?.sources?.any { it.isFetching } == true
             Header(
-                isRefreshing = tick.isRefreshing,
+                isRefreshing = anyFetching,
                 onRefresh = viewModel::manualRefresh,
                 onSettings = onOpenSettings,
             )
@@ -106,7 +108,7 @@ private fun Header(
             )
             Spacer(Modifier.height(4.dp))
             LiveBadge(
-                text = if (isRefreshing) "در حال دریافت از ۳ منبع" else "زنده — ۳ منبع",
+                text = if (isRefreshing) "در حال دریافت لحظه‌ای" else "زنده — ۴ منبع",
                 color = Color(0xFF16A34A),
                 pulsing = true,
             )

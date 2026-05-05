@@ -1,18 +1,21 @@
 package ir.exchangerate.app.data
 
+import android.content.Context
 import ir.exchangerate.app.data.api.AlanchandSource
 import ir.exchangerate.app.data.api.BonbastSource
+import ir.exchangerate.app.data.api.NavasanSource
 import ir.exchangerate.app.data.api.RateSource
 import ir.exchangerate.app.data.api.TgjuSource
+import ir.exchangerate.app.data.api.util.WebViewScraper
 import ir.exchangerate.app.data.model.Currency
 import ir.exchangerate.app.data.model.Rate
 import ir.exchangerate.app.data.model.Source
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class SourceRates(
     val source: Source,
@@ -20,6 +23,7 @@ data class SourceRates(
     val errors: Map<Currency, Throwable>,
     val lastFetchedAt: Long?,
     val isFresh: Boolean,
+    val isFetching: Boolean,
 )
 
 sealed interface RatesState {
@@ -28,57 +32,87 @@ sealed interface RatesState {
     data class Error(val cause: Throwable) : RatesState
 }
 
-class ExchangeRateRepository(
-    private val sources: List<RateSource> = listOf(
+class ExchangeRateRepository(context: Context) {
+
+    private val scraper = WebViewScraper(context.applicationContext)
+
+    val sources: List<RateSource> = listOf(
         TgjuSource(),
-        BonbastSource(),
-        AlanchandSource(),
-    ),
-) {
+        BonbastSource(scraper),
+        AlanchandSource(scraper),
+        NavasanSource(scraper),
+    )
+
     private val tracked = listOf(Currency.USD, Currency.EUR, Currency.OMR)
 
     private val _state = MutableStateFlow<RatesState>(RatesState.Loading)
     val state: StateFlow<RatesState> = _state.asStateFlow()
 
-    private val cache: MutableMap<Source, SourceRates> = mutableMapOf()
+    private val cache: MutableMap<Source, SourceRates> = sources.associate {
+        it.source to SourceRates(
+            source = it.source,
+            rates = emptyMap(),
+            errors = emptyMap(),
+            lastFetchedAt = null,
+            isFresh = false,
+            isFetching = true,
+        )
+    }.toMutableMap()
 
-    suspend fun refresh() = coroutineScope {
-        val deferred = sources.map { src ->
-            async {
-                val now = System.currentTimeMillis()
-                val results = runCatching { src.fetch(tracked) }.getOrElse { e ->
-                    return@async src.source to SourceRates(
-                        source = src.source,
-                        rates = cache[src.source]?.rates.orEmpty(),
-                        errors = tracked.associateWith { e },
-                        lastFetchedAt = cache[src.source]?.lastFetchedAt,
-                        isFresh = false,
-                    )
-                }
+    private val cacheMutex = Mutex()
 
-                val rates = results.mapNotNull { (k, v) -> v.getOrNull()?.let { k to it } }.toMap()
-                val errors = results.filterValues { it.isFailure }
-                    .mapValues { it.value.exceptionOrNull() ?: RuntimeException("unknown") }
+    init {
+        publishLoaded()
+    }
 
-                val merged = (cache[src.source]?.rates.orEmpty() + rates)
-                src.source to SourceRates(
-                    source = src.source,
-                    rates = merged,
-                    errors = errors,
-                    lastFetchedAt = if (rates.isNotEmpty()) now else cache[src.source]?.lastFetchedAt,
-                    isFresh = rates.isNotEmpty(),
+    suspend fun refreshSource(source: RateSource) {
+        markFetching(source.source, true)
+        val now = System.currentTimeMillis()
+
+        val results = runCatching { source.fetch(tracked) }.getOrElse { error ->
+            updateAfterFetch(source.source) { previous ->
+                previous.copy(
+                    errors = tracked.associateWith { error },
+                    isFresh = false,
+                    isFetching = false,
                 )
             }
+            return
         }
 
-        deferred.awaitAll().forEach { (src, sourceRates) -> cache[src] = sourceRates }
+        val rates = results.mapNotNull { (k, v) -> v.getOrNull()?.let { k to it } }.toMap()
+        val errors = results.filterValues { it.isFailure }
+            .mapValues { it.value.exceptionOrNull() ?: RuntimeException("unknown") }
 
-        val ordered = sources.map { cache[it.source] ?: SourceRates(it.source, emptyMap(), emptyMap(), null, false) }
-        _state.value = if (ordered.all { it.rates.isEmpty() }) {
-            RatesState.Error(RuntimeException("هیچ منبعی پاسخ نداد"))
-        } else {
-            RatesState.Loaded(ordered)
+        updateAfterFetch(source.source) { previous ->
+            val merged = previous.rates + rates
+            previous.copy(
+                rates = merged,
+                errors = errors,
+                lastFetchedAt = if (rates.isNotEmpty()) now else previous.lastFetchedAt,
+                isFresh = rates.isNotEmpty(),
+                isFetching = false,
+            )
         }
     }
-}
 
+    private suspend fun markFetching(source: Source, fetching: Boolean) {
+        cacheMutex.withLock {
+            cache[source] = (cache[source] ?: return).copy(isFetching = fetching)
+        }
+        publishLoaded()
+    }
+
+    private suspend fun updateAfterFetch(source: Source, block: (SourceRates) -> SourceRates) {
+        cacheMutex.withLock {
+            val previous = cache[source] ?: return
+            cache[source] = block(previous)
+        }
+        publishLoaded()
+    }
+
+    private fun publishLoaded() {
+        val ordered = sources.map { cache[it.source]!! }
+        _state.update { RatesState.Loaded(ordered) }
+    }
+}

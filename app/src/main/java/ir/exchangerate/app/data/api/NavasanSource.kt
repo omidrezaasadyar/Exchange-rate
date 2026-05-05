@@ -10,11 +10,11 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
-class AlanchandSource(
+class NavasanSource(
     private val scraper: WebViewScraper,
 ) : RateSource {
 
-    override val source: Source = Source.ALANCHAND
+    override val source: Source = Source.NAVASAN
 
     private val keywords = mapOf(
         Currency.USD to listOf("دلار آمریکا", "دلار امریکا", "دلار", "us dollar", "usd"),
@@ -26,8 +26,8 @@ class AlanchandSource(
         val now = System.currentTimeMillis()
         val html = runCatching {
             scraper.fetchRenderedHtml(
-                url = "https://alanchand.com/",
-                settleDelayMs = 5000L,
+                url = "https://navasan.tech/",
+                settleDelayMs = 4500L,
             )
         }.getOrElse { error ->
             return currencies.associateWith { Result.failure(error) }
@@ -57,7 +57,7 @@ class AlanchandSource(
     private fun findPrice(doc: Document, currency: Currency): Long? {
         val terms = keywords[currency] ?: return null
 
-        for (row in doc.select("tr, .currency-row, [class*=\"row\"], [class*=\"item\"], li")) {
+        for (row in doc.select("tr, .row, .item, li, [class*=\"currency\"], [class*=\"price\"]")) {
             val rowText = row.text().lowercase()
             if (terms.none { rowText.contains(it.lowercase()) }) continue
             val price = extractLargeNumber(row)

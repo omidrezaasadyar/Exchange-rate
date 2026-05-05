@@ -5,6 +5,6 @@ import ir.exchangerate.app.data.ExchangeRateRepository
 import ir.exchangerate.app.data.PreferencesStore
 
 class ExchangeApp : Application() {
-    val repository by lazy { ExchangeRateRepository() }
+    val repository by lazy { ExchangeRateRepository(this) }
     val preferences by lazy { PreferencesStore(this) }
 }
