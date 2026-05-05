@@ -11,12 +11,24 @@ import org.jsoup.nodes.Document
 import java.net.URLEncoder
 
 /**
- * Donya-e-Eqtesad has dedicated tag pages per currency:
- *   /tags/قیمت_دلار   /tags/قیمت_یورو   /tags/قیمت_ریال_عمان
- * Each page lists news article cards whose titles contain the latest price
- * (e.g. "قیمت یورو امروز ۹۵,۰۰۰ تومان شد"). We render the page in WebView,
- * then walk article titles and pull the first realistic toman number out of
- * any title that mentions the target currency.
+ * Donya-e-Eqtesad publishes per-currency tag pages, e.g.
+ *   /tags/قیمت_یورو
+ * Each page has a real HTML table:
+ *   | عنوان | قیمت | تغییرات |
+ *   | یورو  | 211,950 | -3.50% |
+ *   | دلار آمریکا | 180,910 | -3.47% |
+ * plus a descriptive paragraph above it that ends with the latest price.
+ *
+ * Parser strategy, in order of preference:
+ *   1. Walk all <tr> elements; pick the row whose first cell mentions the
+ *      target currency, then take the first realistic toman number from the
+ *      remaining cells.
+ *   2. Walk paragraphs that mention the currency and take the *last* number
+ *      (the descriptive sentence reads like "previously X, today Y").
+ *   3. Fall back to article titles.
+ *
+ * Note: the Donya-e-Eqtesad currency table on these tag pages typically
+ * does not include ریال عمان, so OMR may legitimately fail here.
  */
 class DonyaEqtesadSource(
     private val scraper: WebViewScraper,
@@ -25,7 +37,7 @@ class DonyaEqtesadSource(
     override val source: Source = Source.DONYA_EQTESAD
 
     private val keywords = mapOf(
-        Currency.USD to listOf("دلار آمریکا", "دلار امریکا", "دلار", "us dollar", "usd"),
+        Currency.USD to listOf("دلار آمریکا", "دلار امریکا", "us dollar", "usd", "دلار"),
         Currency.EUR to listOf("یورو", "euro", "eur"),
         Currency.OMR to listOf("ریال عمان", "عمان", "omani rial", "omr"),
     )
@@ -42,10 +54,9 @@ class DonyaEqtesadSource(
 
         for (currency in currencies) {
             out[currency] = runCatching {
-                val html = loadTagPage(currency)
-                    ?: error("صفحه برای این ارز پیدا نشد")
-                val priceToman = extractPriceFromTitles(html, currency)
-                    ?: error("قیمت در عناوین خبر پیدا نشد · ${preview(html)}")
+                val html = loadTagPage(currency) ?: error("صفحه برای این ارز پیدا نشد")
+                val priceToman = extractPrice(html, currency)
+                    ?: error("قیمت پیدا نشد · ${preview(html)}")
 
                 Rate(
                     source = source,
@@ -74,10 +85,10 @@ class DonyaEqtesadSource(
                 scraper.fetchRenderedHtml(
                     url = url,
                     readyJsExpression =
-                        "document.body && document.body.innerText.match(/[0-9][0-9,٬،]{4,}/) != null",
+                        "document.body && document.body.innerText.match(/[0-9۰-۹٠-٩][0-9۰-۹٠-٩,٬،]{4,}/) != null",
                     minDelayMs = 1500L,
-                    maxWaitAfterLoadMs = 10_000L,
-                    timeoutMs = 22_000L,
+                    maxWaitAfterLoadMs = 12_000L,
+                    timeoutMs = 25_000L,
                 )
             }
             val html = attempt.getOrNull()
@@ -93,22 +104,66 @@ class DonyaEqtesadSource(
         return "https://donya-e-eqtesad.com/tags/$encoded"
     }
 
-    private fun extractPriceFromTitles(html: String, currency: Currency): Long? {
-        val doc: Document = Jsoup.parse(html)
+    private fun extractPrice(html: String, currency: Currency): Long? {
+        val doc = Jsoup.parse(html)
         val terms = keywords[currency] ?: return null
         val otherTerms = keywords.filterKeys { it != currency }.values.flatten()
 
-        val titleSelectors = listOf(
-            "h1", "h2", "h3", "h4",
-            "a.title",
-            "[class*=\"title\"] a",
-            "article h2",
-            "article h3",
-            ".news-title",
-            "a",
-        )
+        priceFromTable(doc, terms, otherTerms)?.let { return it }
+        priceFromParagraphs(doc, terms, otherTerms)?.let { return it }
+        priceFromHeadings(doc, terms, otherTerms)?.let { return it }
+        return null
+    }
 
-        for (selector in titleSelectors) {
+    private fun priceFromTable(
+        doc: Document,
+        terms: List<String>,
+        otherTerms: List<String>,
+    ): Long? {
+        for (row in doc.select("tr")) {
+            val cells = row.select("td")
+            if (cells.isEmpty()) continue
+            val firstText = cells.first()?.text()?.lowercase().orEmpty()
+            if (terms.none { firstText.contains(it.lowercase()) }) continue
+            if (otherTerms.any { firstText.contains(it.lowercase()) }) continue
+
+            for (i in 1 until cells.size) {
+                val price = firstReasonableNumber(cells[i].text())
+                if (price != null) return price
+            }
+            val rowPrice = firstReasonableNumber(row.text())
+            if (rowPrice != null) return rowPrice
+        }
+        return null
+    }
+
+    private fun priceFromParagraphs(
+        doc: Document,
+        terms: List<String>,
+        otherTerms: List<String>,
+    ): Long? {
+        val regex = Regex("""[0-9۰-۹٠-٩]{1,3}(?:[,،٬]?[0-9۰-۹٠-٩]{3})+""")
+        for (el in doc.select("p, .description, .summary, .lead")) {
+            val text = el.text()
+            val lower = text.lowercase()
+            if (terms.none { lower.contains(it.lowercase()) }) continue
+            if (otherTerms.any { lower.contains(it.lowercase()) }) continue
+
+            val matches = regex.findAll(text).toList()
+            for (match in matches.reversed()) {
+                val parsed = PriceParser.parseLong(match.value) ?: continue
+                if (parsed in 5_000..100_000_000_000L) return parsed
+            }
+        }
+        return null
+    }
+
+    private fun priceFromHeadings(
+        doc: Document,
+        terms: List<String>,
+        otherTerms: List<String>,
+    ): Long? {
+        for (selector in listOf("h1", "h2", "h3", "h4", "a.title", "a")) {
             for (el in doc.select(selector)) {
                 val text = el.text().trim()
                 if (text.isBlank()) continue
@@ -133,6 +188,6 @@ class DonyaEqtesadSource(
 
     private fun preview(html: String): String {
         val text = Jsoup.parse(html).body()?.text().orEmpty()
-        return text.take(120).replace("\n", " ")
+        return text.take(150).replace("\n", " ")
     }
 }
