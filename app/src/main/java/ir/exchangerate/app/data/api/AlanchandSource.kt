@@ -17,7 +17,7 @@ class AlanchandSource(
     override val source: Source = Source.ALANCHAND
 
     private val keywords = mapOf(
-        Currency.USD to listOf("دلار آمریکا", "دلار امریکا", "دلار", "us dollar", "usd"),
+        Currency.USD to listOf("دلار آمریکا", "دلار امریکا", "us dollar", "usd"),
         Currency.EUR to listOf("یورو", "euro", "eur"),
         Currency.OMR to listOf("ریال عمان", "عمان", "omani rial", "omr"),
     )
@@ -28,7 +28,7 @@ class AlanchandSource(
             scraper.fetchRenderedHtml(
                 url = "https://alanchand.com/",
                 readyJsExpression =
-                    "document.body && (document.body.innerText.includes('دلار') || document.body.innerText.includes('یورو'))",
+                    "document.body && (document.body.innerText.includes('دلار') && document.body.innerText.match(/[0-9][0-9,]{4,}/))",
                 minDelayMs = 2500L,
                 maxWaitAfterLoadMs = 15_000L,
                 timeoutMs = 30_000L,
@@ -62,41 +62,39 @@ class AlanchandSource(
 
     private fun findPrice(doc: Document, currency: Currency): Long? {
         val terms = keywords[currency] ?: return null
+        val otherTerms = keywords.filterKeys { it != currency }.values.flatten()
 
-        for (row in doc.select("tr, li, .row, [class*=\"row\"], [class*=\"item\"], [class*=\"currency\"], [class*=\"card\"]")) {
-            val rowText = row.text().lowercase()
-            if (terms.none { rowText.contains(it.lowercase()) }) continue
-            val price = extractLargeNumber(row)
-            if (price != null) return price
-        }
+        val rowSelectors = listOf(
+            "tr",
+            "li",
+            "[class*=\"row\"]",
+            "[class*=\"item\"]",
+            "[class*=\"currency\"]",
+            "[class*=\"card\"]",
+            "[class*=\"price\"]",
+        )
 
-        for (label in doc.select("h1, h2, h3, h4, h5, span, div, td, p, a, strong, b")) {
-            val txt = label.text().lowercase()
-            if (terms.none { txt.contains(it.lowercase()) }) continue
-            var ancestor: Element? = label.parent()
-            var depth = 0
-            while (ancestor != null && depth < 3) {
-                val price = extractLargeNumber(ancestor)
+        for (selector in rowSelectors) {
+            for (row in doc.select(selector)) {
+                val rowText = row.text().lowercase()
+                if (terms.none { rowText.contains(it.lowercase()) }) continue
+                if (otherTerms.any { rowText.contains(it.lowercase()) }) continue
+                val price = extractFirstReasonablePrice(row)
                 if (price != null) return price
-                ancestor = ancestor.parent()
-                depth++
             }
         }
         return null
     }
 
-    private fun extractLargeNumber(scope: Element): Long? {
-        var best: Long? = null
+    private fun extractFirstReasonablePrice(scope: Element): Long? {
         for (node in scope.select("*")) {
             val text = node.ownText()
             if (text.isBlank()) continue
             val parsed = PriceParser.parseLong(text) ?: continue
-            if (parsed > 5000 && parsed < 100_000_000_000L) {
-                if (best == null || parsed > best!!) best = parsed
-            }
+            if (parsed in 5_000..100_000_000_000L) return parsed
         }
-        if (best != null) return best
-        return PriceParser.parseLong(scope.text())?.takeIf { it in 5000..100_000_000_000L }
+        val whole = PriceParser.parseLong(scope.text())
+        return whole?.takeIf { it in 5_000..100_000_000_000L }
     }
 
     private fun preview(html: String): String {
