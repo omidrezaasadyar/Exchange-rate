@@ -10,22 +10,23 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 
-class DonyaEqtesadSource(
+class FararuSource(
     private val scraper: WebViewScraper,
 ) : RateSource {
 
-    override val source: Source = Source.DONYA_EQTESAD
+    override val source: Source = Source.FARARU
 
     private val keywords = mapOf(
-        Currency.USD to listOf("دلار آمریکا", "دلار امریکا", "دلار", "us dollar", "usd"),
+        Currency.USD to listOf("دلار آمریکا", "دلار امریکا", "us dollar", "usd"),
         Currency.EUR to listOf("یورو", "euro", "eur"),
         Currency.OMR to listOf("ریال عمان", "عمان", "omani rial", "omr"),
     )
 
     private val candidateUrls = listOf(
-        "https://donya-e-eqtesad.com/markets/currency",
-        "https://donya-e-eqtesad.com/بخش-بازار-3/markets/currency",
-        "https://donya-e-eqtesad.com/",
+        "https://fararu.com/fa/markets/currency",
+        "https://fararu.com/fa/economy",
+        "https://fararu.com/fa/news/markets/currency",
+        "https://fararu.com/",
     )
 
     override suspend fun fetch(currencies: List<Currency>): Map<Currency, Result<Rate>> {
@@ -38,10 +39,10 @@ class DonyaEqtesadSource(
                 scraper.fetchRenderedHtml(
                     url = url,
                     readyJsExpression =
-                        "document.body && (document.body.innerText.includes('دلار') && document.body.innerText.match(/[0-9][0-9,]{4,}/))",
+                        "document.body && document.body.innerText.includes('دلار') && document.body.innerText.match(/[0-9][0-9,]{4,}/)",
                     minDelayMs = 2000L,
                     maxWaitAfterLoadMs = 12_000L,
-                    timeoutMs = 28_000L,
+                    timeoutMs = 25_000L,
                 )
             }
             if (attempt.isSuccess) {
@@ -91,6 +92,7 @@ class DonyaEqtesadSource(
             "[class*=\"item\"]",
             "[class*=\"market\"]",
             "[class*=\"currency\"]",
+            "[class*=\"price\"]",
         )
 
         for (selector in rowSelectors) {

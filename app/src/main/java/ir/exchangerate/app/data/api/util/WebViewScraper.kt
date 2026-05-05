@@ -17,7 +17,7 @@ import kotlinx.coroutines.withTimeout
 
 /**
  * Single shared WebView used to fetch the fully-rendered HTML of pages whose
- * prices are populated by JavaScript (alanchand.com, donya-e-eqtesad.com).
+ * prices are populated by JavaScript (alanchand.com, fararu.com).
  *
  * fetchRenderedHtml polls a "ready" JS expression every 250ms after the page
  * finishes loading; once it returns true (or the maximum wait elapses) it

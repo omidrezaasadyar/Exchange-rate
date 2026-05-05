@@ -3,7 +3,7 @@ package ir.exchangerate.app.data
 import android.content.Context
 import ir.exchangerate.app.data.api.AlanchandSource
 import ir.exchangerate.app.data.api.BrsApiSource
-import ir.exchangerate.app.data.api.DonyaEqtesadSource
+import ir.exchangerate.app.data.api.FararuSource
 import ir.exchangerate.app.data.api.RateSource
 import ir.exchangerate.app.data.api.TgjuSource
 import ir.exchangerate.app.data.api.util.WebViewScraper
@@ -40,7 +40,7 @@ class ExchangeRateRepository(context: Context) {
         TgjuSource(),
         BrsApiSource(),
         AlanchandSource(scraper),
-        DonyaEqtesadSource(scraper),
+        FararuSource(scraper),
     )
 
     private val tracked = listOf(Currency.USD, Currency.EUR, Currency.OMR)

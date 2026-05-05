@@ -8,5 +8,5 @@ enum class Source(
     TGJU("tgju.org", "https://www.tgju.org", 10),
     BRSAPI("brsapi.ir", "https://brsapi.ir", 15),
     ALANCHAND("alanchand.com", "https://alanchand.com", 30),
-    DONYA_EQTESAD("دنیای اقتصاد", "https://donya-e-eqtesad.com", 45),
+    FARARU("fararu.com", "https://fararu.com", 45),
 }

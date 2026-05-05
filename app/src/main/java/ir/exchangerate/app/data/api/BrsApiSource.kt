@@ -17,9 +17,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 /**
- * BRS API — a free public Iranian aggregator that returns USD/EUR/OMR rates
- * in toman as a JSON document. The "currency" array contains an entry per
- * currency with at minimum {name, price, change}.
+ * BRS API — a free Iranian aggregator. The free tier requires the public
+ * "FreeBrs..." key that the maintainer ships in their public docs. We try a
+ * handful of known endpoints in order; the first one that returns a JSON body
+ * with a populated currency array wins.
  */
 class BrsApiSource(
     private val client: OkHttpClient = HttpClient.instance,
@@ -36,8 +37,10 @@ class BrsApiSource(
     )
 
     private val candidateUrls = listOf(
-        "https://brsapi.ir/Api/Market/Gold_Currency.php",
-        "https://brsapi.ir/Api/Market/Gold_Currency-v2.php",
+        "https://BrsApi.ir/Api/Market/Gold_Currency.php?key=FreeFKKVX0F49H4Yo2T6qDYwUTL1ZJBh",
+        "https://BrsApi.ir/Api/Market/Gold_Currency_v2.php?key=FreeFKKVX0F49H4Yo2T6qDYwUTL1ZJBh",
+        "https://BrsApi.ir/Api/Market/Gold_Currency.php?key=FreeBrsApiKey",
+        "https://BrsApi.ir/Api/Market/Gold_Currency.php",
     )
 
     override suspend fun fetch(currencies: List<Currency>): Map<Currency, Result<Rate>> =
@@ -49,10 +52,8 @@ class BrsApiSource(
 
             currencies.associateWith { currency ->
                 runCatching {
-                    val item = findItem(items, currency)
-                        ?: error("ارز در پاسخ پیدا نشد")
-                    val priceToman = readToman(item)
-                        ?: error("قیمت در پاسخ پیدا نشد")
+                    val item = findItem(items, currency) ?: error("ارز در پاسخ پیدا نشد")
+                    val priceToman = readToman(item) ?: error("قیمت در پاسخ پیدا نشد")
 
                     val change = readChangeAmount(item)
                     val direction = when {
@@ -79,17 +80,19 @@ class BrsApiSource(
         }
 
     private fun loadCurrencyArray(): JsonArray {
-        var lastError: Throwable = RuntimeException("no url tried")
+        var lastError: Throwable = RuntimeException("هیچ URL تست نشد")
         for (url in candidateUrls) {
             val attempt = runCatching {
                 val request = Request.Builder()
                     .url(url)
-                    .header("Accept", "application/json")
+                    .header("Accept", "application/json, text/plain, */*")
                     .build()
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) error("HTTP ${response.code}")
                     val body = response.body?.string().orEmpty()
-                    extractCurrencyArray(body)
+                    val arr = extractCurrencyArray(body)
+                    if (arr.isEmpty()) error("لیست ارز خالی")
+                    arr
                 }
             }
             if (attempt.isSuccess) return attempt.getOrThrow()
