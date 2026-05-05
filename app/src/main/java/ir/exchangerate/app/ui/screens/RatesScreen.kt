@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -32,6 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import ir.exchangerate.app.data.RatesState
 import ir.exchangerate.app.data.SourceRates
 import ir.exchangerate.app.ui.RatesViewModel
+import ir.exchangerate.app.ui.components.AboutDialog
 import ir.exchangerate.app.ui.components.LiveBadge
 import ir.exchangerate.app.ui.components.SourceSection
 
@@ -55,6 +60,8 @@ fun RatesScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tick by viewModel.tick.collectAsStateWithLifecycle()
     val unit by viewModel.displayUnit.collectAsStateWithLifecycle()
+
+    var showAbout by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { viewModel.startPolling() }
 
@@ -72,6 +79,7 @@ fun RatesScreen(
                 isRefreshing = anyFetching,
                 onRefresh = viewModel::manualRefresh,
                 onSettings = onOpenSettings,
+                onAbout = { showAbout = true },
             )
 
             when (val s = state) {
@@ -84,6 +92,10 @@ fun RatesScreen(
                 )
             }
         }
+
+        if (showAbout) {
+            AboutDialog(onDismiss = { showAbout = false })
+        }
     }
 }
 
@@ -92,6 +104,7 @@ private fun Header(
     isRefreshing: Boolean,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
+    onAbout: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -108,12 +121,15 @@ private fun Header(
             )
             Spacer(Modifier.height(4.dp))
             LiveBadge(
-                text = if (isRefreshing) "در حال دریافت لحظه‌ای" else "زنده — ۴ منبع",
+                text = if (isRefreshing) "در حال دریافت لحظه‌ای" else "زنده — ۳ منبع",
                 color = Color(0xFF16A34A),
                 pulsing = true,
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onAbout) {
+                Icon(Icons.Outlined.Info, contentDescription = "درباره برنامه")
+            }
             IconButton(onClick = onRefresh) {
                 Icon(Icons.Filled.Refresh, contentDescription = "بروزرسانی")
             }

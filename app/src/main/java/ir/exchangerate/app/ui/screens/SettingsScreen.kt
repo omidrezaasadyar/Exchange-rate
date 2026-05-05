@@ -133,7 +133,7 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "منابع داده:\n• tgju.org — HTTP سریع، هر ۱۰ ثانیه\n• brsapi.ir — API JSON رایگان، هر ۱۵ ثانیه\n• alanchand.com — WebView، هر ۳۰ ثانیه\n• fararu.com — WebView، هر ۴۵ ثانیه\n\nهر منبع loop مستقل خودش را دارد. منابع WebView صفحه را در پس‌زمینه رندر می‌کنند تا قیمت‌های وابسته به جاوااسکریپت قابل خواندن شوند.",
+                    text = "منابع داده:\n• tgju.org — HTTP سریع، هر ۱۰ ثانیه\n• alanchand.com — WebView، هر ۳۰ ثانیه\n• دنیای اقتصاد — WebView، هر ۶۰ ثانیه (از صفحات تگ قیمت)\n\nهر منبع loop مستقل خودش را دارد. منابع WebView صفحه را در پس‌زمینه رندر می‌کنند تا قیمت‌های وابسته به جاوااسکریپت قابل خواندن شوند.",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
