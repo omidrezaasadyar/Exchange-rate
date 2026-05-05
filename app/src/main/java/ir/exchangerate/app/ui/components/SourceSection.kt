@@ -71,6 +71,12 @@ fun SourceSection(
                     Spacer(Modifier.height(2.dp))
                 }
             }
+
+            val firstError = sourceRates.errors.values.firstOrNull()
+            if (sourceRates.rates.isEmpty() && firstError != null) {
+                Spacer(Modifier.height(4.dp))
+                ErrorDetails(error = firstError)
+            }
         }
     }
 }
@@ -202,11 +208,35 @@ private fun CurrencyRow(
             }
         } else {
             Text(
-                text = error?.message?.take(30) ?: "—",
+                text = error?.message?.take(60) ?: "—",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.error,
             )
         }
+    }
+}
+
+@Composable
+private fun ErrorDetails(error: Throwable) {
+    val message = error.message ?: error::class.java.simpleName
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFFDC2626).copy(alpha = 0.08f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = "جزئیات خطا",
+            style = MaterialTheme.typography.labelMedium,
+            color = Color(0xFFDC2626),
+        )
+        Text(
+            text = message,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
 

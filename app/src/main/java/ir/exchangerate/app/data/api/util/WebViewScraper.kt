@@ -19,8 +19,9 @@ import kotlinx.coroutines.withTimeout
  * Single shared WebView used to fetch the fully-rendered HTML of pages whose
  * prices are populated by JavaScript (bonbast.com, alanchand.com, navasan.tech).
  *
- * Calls are serialized through a mutex because there is exactly one WebView
- * instance and it can only run a single navigation at a time.
+ * fetchRenderedHtml polls a "ready" JS expression every 250ms after the page
+ * finishes loading; once it returns true (or the maximum wait elapses) it
+ * dumps the rendered HTML back via a JS bridge.
  */
 class WebViewScraper(private val context: Context) {
 
@@ -31,8 +32,10 @@ class WebViewScraper(private val context: Context) {
 
     suspend fun fetchRenderedHtml(
         url: String,
-        settleDelayMs: Long = 3500L,
-        timeoutMs: Long = 18_000L,
+        readyJsExpression: String = "document.body && document.body.innerText.length > 100",
+        minDelayMs: Long = 1500L,
+        maxWaitAfterLoadMs: Long = 15_000L,
+        timeoutMs: Long = 30_000L,
     ): String = mutex.withLock {
         withTimeout(timeoutMs) {
             withContext(Dispatchers.Main) {
@@ -50,7 +53,7 @@ class WebViewScraper(private val context: Context) {
                         description: String?,
                         failingUrl: String?,
                     ) {
-                        if (!pageLoaded.isCompleted) {
+                        if (!pageLoaded.isCompleted && failingUrl == url) {
                             pageLoaded.completeExceptionally(
                                 RuntimeException("WebView error $errorCode: $description")
                             )
@@ -58,26 +61,43 @@ class WebViewScraper(private val context: Context) {
                     }
                 }
 
+                val htmlBridge = HtmlBridge()
+                view.removeJavascriptInterface(BRIDGE_NAME)
+                view.addJavascriptInterface(htmlBridge, BRIDGE_NAME)
+
                 view.stopLoading()
                 view.clearHistory()
                 view.loadUrl(url)
 
                 pageLoaded.await()
-                delay(settleDelayMs)
 
-                val html = CompletableDeferred<String>()
-                val bridge = HtmlBridge(html)
-                view.removeJavascriptInterface("AndroidHtmlBridge")
-                view.addJavascriptInterface(bridge, "AndroidHtmlBridge")
+                delay(minDelayMs)
+                pollUntilReady(view, readyJsExpression, maxWaitAfterLoadMs)
 
+                htmlBridge.reset()
                 view.evaluateJavascript(
-                    "AndroidHtmlBridge.receive(document.documentElement.outerHTML);",
+                    "$BRIDGE_NAME.receive(document.documentElement.outerHTML);",
                     null,
                 )
-
-                val raw = html.await()
-                raw
+                htmlBridge.await()
             }
+        }
+    }
+
+    private suspend fun pollUntilReady(
+        view: WebView,
+        readyJsExpression: String,
+        maxWaitMs: Long,
+    ) {
+        val start = System.currentTimeMillis()
+        while (System.currentTimeMillis() - start < maxWaitMs) {
+            val ready = CompletableDeferred<Boolean>()
+            view.evaluateJavascript("(function(){try{return !!($readyJsExpression);}catch(e){return false;}})();") {
+                val v = it?.trim()?.removeSurrounding("\"")
+                ready.complete(v == "true")
+            }
+            if (ready.await()) return
+            delay(300)
         }
     }
 
@@ -88,7 +108,7 @@ class WebViewScraper(private val context: Context) {
             settings.apply {
                 javaScriptEnabled = true
                 domStorageEnabled = true
-                cacheMode = WebSettings.LOAD_NO_CACHE
+                cacheMode = WebSettings.LOAD_DEFAULT
                 loadsImagesAutomatically = false
                 blockNetworkImage = true
                 userAgentString = MOBILE_UA
@@ -96,6 +116,9 @@ class WebViewScraper(private val context: Context) {
                     safeBrowsingEnabled = false
                 }
                 mediaPlaybackRequiresUserGesture = true
+                javaScriptCanOpenWindowsAutomatically = false
+                allowFileAccess = false
+                allowContentAccess = false
             }
             setBackgroundColor(0)
             isVerticalScrollBarEnabled = false
@@ -105,7 +128,13 @@ class WebViewScraper(private val context: Context) {
         return view
     }
 
-    private class HtmlBridge(private val deferred: CompletableDeferred<String>) {
+    private class HtmlBridge {
+        private var deferred: CompletableDeferred<String> = CompletableDeferred()
+
+        fun reset() { deferred = CompletableDeferred() }
+
+        suspend fun await(): String = deferred.await()
+
         @JavascriptInterface
         fun receive(html: String) {
             if (!deferred.isCompleted) deferred.complete(html)
@@ -113,6 +142,7 @@ class WebViewScraper(private val context: Context) {
     }
 
     companion object {
+        private const val BRIDGE_NAME = "AndroidHtmlBridge"
         private const val MOBILE_UA =
             "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 " +
                 "(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
