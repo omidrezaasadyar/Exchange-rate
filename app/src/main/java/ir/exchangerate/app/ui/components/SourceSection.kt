@@ -72,10 +72,15 @@ fun SourceSection(
                 }
             }
 
-            val firstError = sourceRates.errors.values.firstOrNull()
-            if (sourceRates.rates.isEmpty() && firstError != null) {
+            val firstHardError = sourceRates.errors.values.firstOrNull { err ->
+                val m = err.message.orEmpty()
+                !(m.contains("پیدا نشد") ||
+                    m.contains("not found", ignoreCase = true) ||
+                    m.contains("نیست"))
+            }
+            if (sourceRates.rates.isEmpty() && firstHardError != null) {
                 Spacer(Modifier.height(4.dp))
-                ErrorDetails(error = firstError)
+                ErrorDetails(error = firstHardError)
             }
         }
     }
@@ -207,10 +212,18 @@ private fun CurrencyRow(
                 }
             }
         } else {
+            val msg = error?.message.orEmpty()
+            val notAvailable = msg.contains("پیدا نشد") ||
+                msg.contains("not found", ignoreCase = true) ||
+                msg.contains("نیست")
             Text(
-                text = error?.message?.take(60) ?: "—",
+                text = if (notAvailable) "در این منبع موجود نیست" else msg.take(60).ifBlank { "—" },
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.error,
+                color = if (notAvailable) {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                } else {
+                    MaterialTheme.colorScheme.error
+                },
             )
         }
     }

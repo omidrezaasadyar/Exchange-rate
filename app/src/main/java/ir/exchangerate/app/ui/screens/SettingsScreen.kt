@@ -153,7 +153,7 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "منابع داده:\n• tgju.org — HTTP سریع، هر ۱۰ ثانیه\n• alanchand.com — WebView، هر ۳۰ ثانیه\n• دنیای اقتصاد — WebView، هر ۶۰ ثانیه (از صفحات تگ قیمت)\n\nهر منبع loop مستقل خودش را دارد. منابع WebView صفحه را در پس‌زمینه رندر می‌کنند تا قیمت‌های وابسته به جاوااسکریپت قابل خواندن شوند.",
+                    text = "منابع داده:\n• tgju.org — HTTP سریع، هر ۱۰ ثانیه\n• اقتصاد ایران — WebView، هر ۶۰ ثانیه\n• دنیای اقتصاد — WebView، هر ۶۰ ثانیه\n\nبا فعال کردن کلید VPN در صفحه اصلی، دو منبع زیر هم اضافه می‌شود (نیاز به فیلترشکن دارند):\n• alanchand.com\n• bonbast.com",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

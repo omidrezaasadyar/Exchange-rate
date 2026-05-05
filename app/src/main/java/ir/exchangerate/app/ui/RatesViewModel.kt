@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -28,8 +29,6 @@ class RatesViewModel(
     private val preferences: PreferencesStore,
 ) : ViewModel() {
 
-    val state: StateFlow<RatesState> = repository.state
-
     val displayUnit: StateFlow<DisplayUnit> = preferences.displayUnit.stateIn(
         viewModelScope, SharingStarted.Eagerly, DisplayUnit.TOMAN,
     )
@@ -37,6 +36,19 @@ class RatesViewModel(
     val refreshIntervalSeconds: StateFlow<Int> = preferences.refreshIntervalSeconds.stateIn(
         viewModelScope, SharingStarted.Eagerly, 10,
     )
+
+    val vpnMode: StateFlow<Boolean> = preferences.vpnMode.stateIn(
+        viewModelScope, SharingStarted.Eagerly, false,
+    )
+
+    val state: StateFlow<RatesState> = combine(repository.state, vpnMode) { state, vpn ->
+        when (state) {
+            is RatesState.Loaded -> RatesState.Loaded(
+                sources = state.sources.filter { !it.source.requiresVpn || vpn },
+            )
+            else -> state
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, RatesState.Loading)
 
     private val _tick = MutableStateFlow(TickState())
     val tick: StateFlow<TickState> = _tick.asStateFlow()
@@ -46,6 +58,17 @@ class RatesViewModel(
 
     init {
         startClock()
+        viewModelScope.launch {
+            var previousVpn = vpnMode.value
+            vpnMode.collect { current ->
+                if (current && !previousVpn) {
+                    repository.sources
+                        .filter { it.source.requiresVpn }
+                        .forEach { src -> launch { repository.refreshSource(src) } }
+                }
+                previousVpn = current
+            }
+        }
     }
 
     fun startPolling() {
@@ -54,7 +77,10 @@ class RatesViewModel(
             if (pollingJobs[key]?.isActive == true) return@forEach
             pollingJobs[key] = viewModelScope.launch {
                 while (true) {
-                    repository.refreshSource(source)
+                    val active = !source.source.requiresVpn || vpnMode.value
+                    if (active) {
+                        repository.refreshSource(source)
+                    }
                     val baseSeconds = refreshIntervalSeconds.value.coerceAtLeast(5)
                     val sourceSeconds = source.source.defaultIntervalSeconds
                     val effective = maxOf(baseSeconds, sourceSeconds)
@@ -71,7 +97,10 @@ class RatesViewModel(
 
     fun manualRefresh() {
         repository.sources.forEach { source ->
-            viewModelScope.launch { repository.refreshSource(source) }
+            val active = !source.source.requiresVpn || vpnMode.value
+            if (active) {
+                viewModelScope.launch { repository.refreshSource(source) }
+            }
         }
     }
 
@@ -81,6 +110,10 @@ class RatesViewModel(
 
     fun setRefreshInterval(seconds: Int) {
         viewModelScope.launch { preferences.setRefreshIntervalSeconds(seconds) }
+    }
+
+    fun setVpnMode(enabled: Boolean) {
+        viewModelScope.launch { preferences.setVpnMode(enabled) }
     }
 
     private fun startClock() {

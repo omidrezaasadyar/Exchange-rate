@@ -64,6 +64,7 @@ fun RatesScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tick by viewModel.tick.collectAsStateWithLifecycle()
     val unit by viewModel.displayUnit.collectAsStateWithLifecycle()
+    val vpnMode by viewModel.vpnMode.collectAsStateWithLifecycle()
 
     var showAbout by remember { mutableStateOf(false) }
 
@@ -79,8 +80,12 @@ fun RatesScreen(
         ) {
             val anyFetching = (state as? RatesState.Loaded)
                 ?.sources?.any { it.isFetching } == true
+            val sourceCount = (state as? RatesState.Loaded)?.sources?.size ?: 3
             Header(
                 isRefreshing = anyFetching,
+                sourceCount = sourceCount,
+                vpnMode = vpnMode,
+                onToggleVpn = { viewModel.setVpnMode(!vpnMode) },
                 onRefresh = viewModel::manualRefresh,
                 onSettings = onOpenSettings,
                 onAbout = { showAbout = true },
@@ -106,50 +111,66 @@ fun RatesScreen(
 @Composable
 private fun Header(
     isRefreshing: Boolean,
+    sourceCount: Int,
+    vpnMode: Boolean,
+    onToggleVpn: () -> Unit,
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
     onAbout: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Column {
-            Text(
-                text = "قیمت لحظه‌ای ارز",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Spacer(Modifier.height(4.dp))
-            LiveBadge(
-                text = if (isRefreshing) "در حال دریافت لحظه‌ای" else "زنده — ۳ منبع",
-                color = Color(0xFF16A34A),
-                pulsing = true,
-            )
-        }
         Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            HeaderIconButton(
-                icon = Icons.Filled.Info,
-                description = "درباره برنامه",
-                onClick = onAbout,
-            )
-            HeaderIconButton(
-                icon = Icons.Filled.Refresh,
-                description = "بروزرسانی",
-                onClick = onRefresh,
-            )
-            HeaderIconButton(
-                icon = Icons.Filled.Settings,
-                description = "تنظیمات",
-                onClick = onSettings,
-            )
+            Column {
+                Text(
+                    text = "قیمت لحظه‌ای ارز",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Spacer(Modifier.height(4.dp))
+                LiveBadge(
+                    text = if (isRefreshing) {
+                        "در حال دریافت لحظه‌ای"
+                    } else {
+                        "زنده — ${ir.exchangerate.app.ui.util.formatGroupedPersian(sourceCount.toLong())} منبع"
+                    },
+                    color = Color(0xFF16A34A),
+                    pulsing = true,
+                )
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                HeaderIconButton(
+                    icon = Icons.Filled.Info,
+                    description = "درباره برنامه",
+                    onClick = onAbout,
+                )
+                HeaderIconButton(
+                    icon = Icons.Filled.Refresh,
+                    description = "بروزرسانی",
+                    onClick = onRefresh,
+                )
+                HeaderIconButton(
+                    icon = Icons.Filled.Settings,
+                    description = "تنظیمات",
+                    onClick = onSettings,
+                )
+            }
         }
+        Spacer(Modifier.height(10.dp))
+        ir.exchangerate.app.ui.components.VpnToggleChip(
+            enabled = vpnMode,
+            onToggle = onToggleVpn,
+        )
     }
 }
 
