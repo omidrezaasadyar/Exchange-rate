@@ -51,43 +51,58 @@ fun SourceSection(
     nowMillis: Long,
     modifier: Modifier = Modifier,
 ) {
+    val accent = Color(sourceRates.source.accentColorHex)
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+        ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SectionHeader(sourceRates = sourceRates, nowMillis = nowMillis)
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .width(6.dp)
+                    .background(accent),
+            )
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .background(accent.copy(alpha = 0.04f)),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                SectionHeader(sourceRates = sourceRates, nowMillis = nowMillis, accent = accent)
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
+                HorizontalDivider(color = accent.copy(alpha = 0.25f))
 
-            val ordered = listOf(Currency.USD, Currency.EUR, Currency.OMR)
-            for ((index, currency) in ordered.withIndex()) {
-                val rate = sourceRates.rates[currency]
-                val error = sourceRates.errors[currency]
-                CurrencyRow(currency = currency, rate = rate, error = error, unit = unit)
-                if (index != ordered.lastIndex) {
-                    Spacer(Modifier.height(2.dp))
+                val ordered = listOf(Currency.USD, Currency.EUR, Currency.OMR)
+                for ((index, currency) in ordered.withIndex()) {
+                    val rate = sourceRates.rates[currency]
+                    val error = sourceRates.errors[currency]
+                    CurrencyRow(currency = currency, rate = rate, error = error, unit = unit, accent = accent)
+                    if (index != ordered.lastIndex) {
+                        Spacer(Modifier.height(2.dp))
+                    }
                 }
-            }
 
-            val firstHardError = sourceRates.errors.values.firstOrNull { err ->
-                val m = err.message.orEmpty()
-                !(m.contains("پیدا نشد") ||
-                    m.contains("not found", ignoreCase = true) ||
-                    m.contains("نیست"))
-            }
-            if (sourceRates.rates.isEmpty() && firstHardError != null) {
-                Spacer(Modifier.height(4.dp))
-                ErrorDetails(error = firstHardError)
+                val firstHardError = sourceRates.errors.values.firstOrNull { err ->
+                    val m = err.message.orEmpty()
+                    !(m.contains("پیدا نشد") ||
+                        m.contains("not found", ignoreCase = true) ||
+                        m.contains("نیست"))
+                }
+                if (sourceRates.rates.isEmpty() && firstHardError != null) {
+                    Spacer(Modifier.height(4.dp))
+                    ErrorDetails(error = firstHardError)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun SectionHeader(sourceRates: SourceRates, nowMillis: Long) {
+private fun SectionHeader(sourceRates: SourceRates, nowMillis: Long, accent: Color) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -97,7 +112,7 @@ private fun SectionHeader(sourceRates: SourceRates, nowMillis: Long) {
             Text(
                 text = sourceRates.source.displayName,
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface,
+                color = accent,
             )
             val timeText = sourceRates.lastFetchedAt?.let { timeAgoFa(nowMillis - it) }
                 ?: "هنوز دریافت نشده"
@@ -157,6 +172,7 @@ private fun CurrencyRow(
     rate: Rate?,
     error: Throwable?,
     unit: DisplayUnit,
+    accent: Color,
 ) {
     Row(
         modifier = Modifier
@@ -197,7 +213,7 @@ private fun CurrencyRow(
                 Text(
                     text = formatPrice(rate.priceRial, unit),
                     style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = accent,
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

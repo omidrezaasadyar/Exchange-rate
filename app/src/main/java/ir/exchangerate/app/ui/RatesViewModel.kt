@@ -10,6 +10,7 @@ import ir.exchangerate.app.data.DisplayUnit
 import ir.exchangerate.app.data.ExchangeRateRepository
 import ir.exchangerate.app.data.PreferencesStore
 import ir.exchangerate.app.data.RatesState
+import ir.exchangerate.app.data.ThemeMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,6 +40,10 @@ class RatesViewModel(
 
     val vpnMode: StateFlow<Boolean> = preferences.vpnMode.stateIn(
         viewModelScope, SharingStarted.Eagerly, false,
+    )
+
+    val themeMode: StateFlow<ThemeMode> = preferences.themeMode.stateIn(
+        viewModelScope, SharingStarted.Eagerly, ThemeMode.SYSTEM,
     )
 
     val state: StateFlow<RatesState> = combine(repository.state, vpnMode) { state, vpn ->
@@ -114,6 +119,10 @@ class RatesViewModel(
 
     fun setVpnMode(enabled: Boolean) {
         viewModelScope.launch { preferences.setVpnMode(enabled) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { preferences.setThemeMode(mode) }
     }
 
     private fun startClock() {

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import ir.exchangerate.app.data.DisplayUnit
+import ir.exchangerate.app.data.ThemeMode
 import ir.exchangerate.app.ui.RatesViewModel
 import ir.exchangerate.app.ui.util.formatGroupedPersian
 
@@ -53,6 +54,7 @@ fun SettingsScreen(
 ) {
     val unit by viewModel.displayUnit.collectAsStateWithLifecycle()
     val interval by viewModel.refreshIntervalSeconds.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
 
     var sliderValue by remember(interval) { mutableFloatStateOf(interval.toFloat()) }
 
@@ -121,6 +123,36 @@ fun SettingsScreen(
                                 selected = unit == DisplayUnit.RIAL,
                                 onClick = { viewModel.setDisplayUnit(DisplayUnit.RIAL) },
                                 label = { Text("ریال") },
+                            )
+                        }
+                    }
+                }
+
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = "تم برنامه",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = themeMode == ThemeMode.SYSTEM,
+                                onClick = { viewModel.setThemeMode(ThemeMode.SYSTEM) },
+                                label = { Text("پیش‌فرض سیستم") },
+                            )
+                            FilterChip(
+                                selected = themeMode == ThemeMode.LIGHT,
+                                onClick = { viewModel.setThemeMode(ThemeMode.LIGHT) },
+                                label = { Text("روشن") },
+                            )
+                            FilterChip(
+                                selected = themeMode == ThemeMode.DARK,
+                                onClick = { viewModel.setThemeMode(ThemeMode.DARK) },
+                                label = { Text("تاریک") },
                             )
                         }
                     }

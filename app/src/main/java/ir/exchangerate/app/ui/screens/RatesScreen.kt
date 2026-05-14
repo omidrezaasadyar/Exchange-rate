@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -59,6 +60,7 @@ import ir.exchangerate.app.ui.components.SourceSection
 @Composable
 fun RatesScreen(
     onOpenSettings: () -> Unit,
+    onOpenDeposits: () -> Unit,
     viewModel: RatesViewModel = viewModel(factory = RatesViewModel.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -89,6 +91,7 @@ fun RatesScreen(
                 onRefresh = viewModel::manualRefresh,
                 onSettings = onOpenSettings,
                 onAbout = { showAbout = true },
+                onDeposits = onOpenDeposits,
             )
 
             when (val s = state) {
@@ -117,6 +120,7 @@ private fun Header(
     onRefresh: () -> Unit,
     onSettings: () -> Unit,
     onAbout: () -> Unit,
+    onDeposits: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -152,16 +156,25 @@ private fun Header(
                 HeaderIconButton(
                     icon = Icons.Filled.Info,
                     description = "درباره برنامه",
+                    accent = Color(0xFF3B82F6),
                     onClick = onAbout,
+                )
+                HeaderIconButton(
+                    icon = Icons.Filled.AccountBalanceWallet,
+                    description = "ثبت واریزی",
+                    accent = Color(0xFF7C3AED),
+                    onClick = onDeposits,
                 )
                 HeaderIconButton(
                     icon = Icons.Filled.Refresh,
                     description = "بروزرسانی",
+                    accent = Color(0xFF16A34A),
                     onClick = onRefresh,
                 )
                 HeaderIconButton(
                     icon = Icons.Filled.Settings,
                     description = "تنظیمات",
+                    accent = Color(0xFFD97706),
                     onClick = onSettings,
                 )
             }
@@ -228,6 +241,12 @@ private fun SectionsList(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        item(key = "comparison") {
+            ir.exchangerate.app.ui.components.PriceComparisonCard(
+                sources = sources,
+                unit = unit,
+            )
+        }
         items(sources, key = { it.source.name }) { sectionData ->
             SourceSection(
                 sourceRates = sectionData,
@@ -242,20 +261,21 @@ private fun SectionsList(
 private fun HeaderIconButton(
     icon: ImageVector,
     description: String,
+    accent: Color,
     onClick: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surface),
+            .background(accent.copy(alpha = 0.15f)),
         contentAlignment = Alignment.Center,
     ) {
         IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
             Icon(
                 imageVector = icon,
                 contentDescription = description,
-                tint = MaterialTheme.colorScheme.onSurface,
+                tint = accent,
             )
         }
     }
